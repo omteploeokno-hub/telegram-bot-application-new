@@ -17,9 +17,8 @@ PRIMARY_POOL_SHEET = "Первичный пул заявок"
 
 EKATERINBURG_TZ = timezone(timedelta(hours=5))
 
-ADMINS = [6067555377,5518656277]
+ADMINS = [6067555377, 5518656277]
 
-# Состояния разговора
 SOURCE, ADDRESS, CLIENT, COMMENT, CONFIRM = range(5)
 
 SOURCE_OPTIONS = [
@@ -81,12 +80,11 @@ async def button_handler(update, context):
     
     if query.data == "create_order":
         context.user_data.clear()
+        keyboard = [[InlineKeyboardButton(opt, callback_data=f"src_{opt}")] for opt in SOURCE_OPTIONS]
+        keyboard.append([InlineKeyboardButton("❌ Отмена", callback_data="cancel")])
         await query.edit_message_text(
             "Выберите источник заявки:",
-            reply_markup=InlineKeyboardMarkup(
-                [[InlineKeyboardButton(opt, callback_data=f"src_{opt}")] for opt in SOURCE_OPTIONS] +
-                [[InlineKeyboardButton("Отмена", callback_data="cancel")]]
-            )
+            reply_markup=InlineKeyboardMarkup(keyboard)
         )
         return SOURCE
     elif query.data == "distribute_order":
@@ -98,34 +96,49 @@ async def source_selected(update, context):
     await query.answer()
     
     if query.data == "cancel":
-        await query.edit_message_text("Отменено.")
+        await query.edit_message_text("❌ Отменено.")
         return ConversationHandler.END
+    
+    if query.data == "back_to_source":
+        keyboard = [[InlineKeyboardButton(opt, callback_data=f"src_{opt}")] for opt in SOURCE_OPTIONS]
+        keyboard.append([InlineKeyboardButton("❌ Отмена", callback_data="cancel")])
+        await query.edit_message_text(
+            "Выберите источник заявки:",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+        return SOURCE
     
     source = query.data.split('_', 1)[1]
     context.user_data['source'] = source
     
+    keyboard = [[InlineKeyboardButton("◀️ Назад", callback_data="back_to_source")]]
     await query.edit_message_text(
         "Введите адрес:\n\n<i>Например, ул. Опалихинская, д. 20, подъезд 3, этаж 5, кв. 228</i>",
-        parse_mode='HTML'
+        parse_mode='HTML',
+        reply_markup=InlineKeyboardMarkup(keyboard)
     )
     return ADDRESS
 
 async def address_received(update, context):
     context.user_data['address'] = update.message.text
+    keyboard = [[InlineKeyboardButton("◀️ Назад", callback_data="back_to_address")]]
     await update.message.reply_text(
         "Введите клиента:\n\n"
         "<i>Следует перечислить реквизиты клиента в одну строку, например: Елена, 89990004422.</i>\n\n"
         "<i>Если необходимо перечислить несколько реквизитов и/или какие-либо пояснения к реквизитам, следует делать это также в одной строке с явным визуальным разделением, например: \"Елена (собственник, по оплате), 89990004422. Анастасия (арендатор, для планирования выезда), 89997776655\"</i>",
-        parse_mode='HTML'
+        parse_mode='HTML',
+        reply_markup=InlineKeyboardMarkup(keyboard)
     )
     return CLIENT
 
 async def client_received(update, context):
     context.user_data['client'] = update.message.text
+    keyboard = [[InlineKeyboardButton("◀️ Назад", callback_data="back_to_client")]]
     await update.message.reply_text(
         "Введите комментарий:\n\n"
         "<i>Следует указать комментарий касательно заявки в свободной форме и необходимом объёме, например: <b>Хочет 5 сеток, пенсионерка, просит скидку, бла-бла-бла, свободна только в день летнего солнцестояния с 14:31 до 14:50, представиться напарником Виктора, ориентировал 2600 за сетку</b></i>",
-        parse_mode='HTML'
+        parse_mode='HTML',
+        reply_markup=InlineKeyboardMarkup(keyboard)
     )
     return COMMENT
 
@@ -136,6 +149,11 @@ async def comment_received(update, context):
 
 async def show_confirmation(update, context):
     data = context.user_data
+    keyboard = [
+        [InlineKeyboardButton("✅ Сформировать заявку", callback_data="submit")],
+        [InlineKeyboardButton("◀️ Заново", callback_data="restart")],
+        [InlineKeyboardButton("❌ Отмена", callback_data="cancel")]
+    ]
     await update.message.reply_text(
         f"Проверьте данные:\n\n"
         f"<b>Источник заявки</b>\n<i>{data.get('source', '')}</i>\n\n"
@@ -144,11 +162,7 @@ async def show_confirmation(update, context):
         f"<b>Комментарий</b>\n<i>{data.get('comment', '')}</i>\n\n"
         f"Следует проверить правильность введённых данных и отправить заявку, если всё в порядке.",
         parse_mode='HTML',
-        reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("Сформировать заявку", callback_data="submit")],
-            [InlineKeyboardButton("Заново", callback_data="restart")],
-            [InlineKeyboardButton("Отмена", callback_data="cancel")]
-        ])
+        reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
 async def confirm_callback(update, context):
@@ -159,26 +173,57 @@ async def confirm_callback(update, context):
         data = context.user_data
         data['receipt_date'] = datetime.now(EKATERINBURG_TZ).strftime("%d.%m.%Y")
         save_order_to_sheet(data)
-        await query.edit_message_text("Заявка успешно сохранена в Первичный пул.")
+        await query.edit_message_text("✅ Заявка успешно сохранена в Первичный пул.")
         context.user_data.clear()
         return ConversationHandler.END
     elif query.data == "restart":
+        keyboard = [[InlineKeyboardButton(opt, callback_data=f"src_{opt}")] for opt in SOURCE_OPTIONS]
+        keyboard.append([InlineKeyboardButton("❌ Отмена", callback_data="cancel")])
         await query.edit_message_text(
             "Выберите источник заявки:",
-            reply_markup=InlineKeyboardMarkup(
-                [[InlineKeyboardButton(opt, callback_data=f"src_{opt}")] for opt in SOURCE_OPTIONS] +
-                [[InlineKeyboardButton("Отмена", callback_data="cancel")]]
-            )
+            reply_markup=InlineKeyboardMarkup(keyboard)
         )
         return SOURCE
     else:
-        await query.edit_message_text("Отменено.")
+        await query.edit_message_text("❌ Отменено.")
         context.user_data.clear()
         return ConversationHandler.END
 
 async def cancel(update, context):
     context.user_data.clear()
-    await update.message.reply_text("Отменено.")
+    await update.message.reply_text("❌ Отменено.")
+    return ConversationHandler.END
+
+async def back_handler(update, context):
+    query = update.callback_query
+    await query.answer()
+    
+    if query.data == "back_to_address":
+        keyboard = [[InlineKeyboardButton("◀️ Назад", callback_data="back_to_source")]]
+        await query.edit_message_text(
+            "Введите адрес:\n\n<i>Например, ул. Опалихинская, д. 20, подъезд 3, этаж 5, кв. 228</i>",
+            parse_mode='HTML',
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+        return ADDRESS
+    elif query.data == "back_to_client":
+        keyboard = [[InlineKeyboardButton("◀️ Назад", callback_data="back_to_address")]]
+        await query.edit_message_text(
+            "Введите клиента:\n\n"
+            "<i>Следует перечислить реквизиты клиента в одну строку, например: Елена, 89990004422.</i>\n\n"
+            "<i>Если необходимо перечислить несколько реквизитов и/или какие-либо пояснения к реквизитам, следует делать это также в одной строке с явным визуальным разделением, например: \"Елена (собственник, по оплате), 89990004422. Анастасия (арендатор, для планирования выезда), 89997776655\"</i>",
+            parse_mode='HTML',
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+        return CLIENT
+    elif query.data == "back_to_source":
+        keyboard = [[InlineKeyboardButton(opt, callback_data=f"src_{opt}")] for opt in SOURCE_OPTIONS]
+        keyboard.append([InlineKeyboardButton("❌ Отмена", callback_data="cancel")])
+        await query.edit_message_text(
+            "Выберите источник заявки:",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+        return SOURCE
     return ConversationHandler.END
 
 @flask_app.route('/webhook', methods=['POST'])
@@ -206,10 +251,10 @@ def run_webhook():
     conv_handler = ConversationHandler(
         entry_points=[CallbackQueryHandler(button_handler, pattern="^create_order$")],
         states={
-            SOURCE: [CallbackQueryHandler(source_selected, pattern="^src_")],
-            ADDRESS: [MessageHandler(filters.TEXT & ~filters.COMMAND, address_received)],
-            CLIENT: [MessageHandler(filters.TEXT & ~filters.COMMAND, client_received)],
-            COMMENT: [MessageHandler(filters.TEXT & ~filters.COMMAND, comment_received)],
+            SOURCE: [CallbackQueryHandler(source_selected, pattern="^(src_|back_to_source|cancel)$")],
+            ADDRESS: [CallbackQueryHandler(back_handler, pattern="^back_to_"), MessageHandler(filters.TEXT & ~filters.COMMAND, address_received)],
+            CLIENT: [CallbackQueryHandler(back_handler, pattern="^back_to_"), MessageHandler(filters.TEXT & ~filters.COMMAND, client_received)],
+            COMMENT: [CallbackQueryHandler(back_handler, pattern="^back_to_"), MessageHandler(filters.TEXT & ~filters.COMMAND, comment_received)],
             CONFIRM: [CallbackQueryHandler(confirm_callback, pattern="^(submit|restart|cancel)$")],
         },
         fallbacks=[CommandHandler("cancel", cancel)]
