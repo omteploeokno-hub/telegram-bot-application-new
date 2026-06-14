@@ -3,7 +3,7 @@ import json
 import asyncio
 from datetime import datetime, timedelta, timezone
 from flask import Flask, request
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, MessageEntity
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters
 import gspread
 from google.oauth2.service_account import Credentials
@@ -143,13 +143,24 @@ def save_order_to_sheet(data, admin_name="Неизвестный"):
     except Exception as e:
         print(f"DEBUG: не удалось отправить уведомление: {e}")
     
-    # Отправка в группу логов движения заявок с датой, временем и именем администратора
+    # Отправка в группу логов движения заявок с датой, временем и именем администратора (через MessageEntity)
     try:
         logs_chat_id = -5316127083
         log_text = f"🟢 {date_time_str} создана новая заявка, присвоен ID #{order_id}\n\n"
-        log_text += f"<i>Действие совершил: \"{admin_name}\"</i>"
+        log_text += f"Действие совершил: \"{admin_name}\""
+        
+        # Находим позицию хэштега
+        hashtag_str = f"#{order_id}"
+        hashtag_start = log_text.find(hashtag_str)
+        
+        if hashtag_start != -1:
+            # Создаём сущность для хэштега
+            entities = [MessageEntity(type="hashtag", offset=hashtag_start, length=len(hashtag_str))]
+        else:
+            entities = None
+        
         asyncio.run_coroutine_threadsafe(
-            telegram_app.bot.send_message(chat_id=logs_chat_id, text=log_text,),
+            telegram_app.bot.send_message(chat_id=logs_chat_id, text=log_text, entities=entities),
             main_loop
         )
         print("DEBUG: уведомление отправлено в группу логов")
@@ -296,7 +307,7 @@ async def handle_text(update, context):
         await update.message.reply_text(
             "Введите клиента:\n\n"
             "<i>Следует перечислить реквизиты клиента в одну строку, например: Елена, 89990004422.</i>\n\n"
-"<i>Если необходимо перечислить несколько реквизитов и/или какие-либо пояснения к реквизитам, следует делать это также в одной строке с явным визуальным разделением, например: \"Елена (собственник, по оплате), 89990004422. Анастасия (арендатор, для планирования выезда), 89997776655\"</i>",
+            "<i>Если необходимо перечислить несколько реквизитов и/или какие-либо пояснения к реквизитам, следует делать это также в одной строке с явным визуальным разделением, например: \"Елена (собственник, по оплате), 89990004422. Анастасия (арендатор, для планирования выезда), 89997776655\"</i>",
             parse_mode='HTML',
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
@@ -405,7 +416,7 @@ async def go_back(update, context):
         await query.edit_message_text(
             "Введите клиента:\n\n"
             "<i>Следует перечислить реквизиты клиента в одну строку, например: Елена, 89990004422.</i>\n\n"
-            "<i>Jika perlu untuk mencantumkan beberapa requisits dan/atau penjelasan untuk requisits, hal ini juga harus dilakukan dalam satu baris dengan pemisahan visual yang jelas, misalnya: \"Елена (pemilik, untuk pembayaran), 89990004422. Anastasia (penyewa, untuk perencanaan keberangkatan), 89997776655\"</i>",
+            "<i>Если необходимо перечислить несколько реквизитов и/или какие-либо пояснения к реквизитам, следует делать это также в одной строке с явным визуальным разделением, например: \"Елена (собственник, по оплате), 89990004422. Анастасия (арендатор, для планирования выезда), 89997776655\"</i>",
             parse_mode='HTML',
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
