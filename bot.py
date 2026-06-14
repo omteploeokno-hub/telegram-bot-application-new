@@ -111,38 +111,33 @@ async def source_callback(update, context):
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
 
-async def address_received(update, context):
-    if context.user_data.get('step') != 'address':
-        return
-    context.user_data['address'] = update.message.text
-    context.user_data['step'] = 'client'
-    keyboard = [[InlineKeyboardButton("◀️ Назад", callback_data="back")]]
-    await update.message.reply_text(
-        "Введите клиента:\n\n"
-        "<i>Следует перечислить реквизиты клиента в одну строку, например: Елена, 89990004422.</i>\n\n"
-        "<i>Если необходимо перечислить несколько реквизитов и/или какие-либо пояснения к реквизитам, следует делать это также в одной строке с явным визуальным разделением, например: \"Елена (собственник, по оплате), 89990004422. Анастасия (арендатор, для планирования выезда), 89997776655\"</i>",
-        parse_mode='HTML',
-        reply_markup=InlineKeyboardMarkup(keyboard)
-    )
-
-async def client_received(update, context):
-    if context.user_data.get('step') != 'client':
-        return
-    context.user_data['client'] = update.message.text
-    context.user_data['step'] = 'comment'
-    keyboard = [[InlineKeyboardButton("◀️ Назад", callback_data="back")]]
-    await update.message.reply_text(
-        "Введите комментарий:\n\n"
-        "<i>Следует указать комментарий касательно заявки в свободной форме и необходимом объёме, например: <b>Хочет 5 сеток, пенсионерка, просит скидку, бла-бла-бла, свободна только в день летнего солнцестояния с 14:31 до 14:50, представиться напарником Виктора, ориентировал 2600 за сетку</b></i>",
-        parse_mode='HTML',
-        reply_markup=InlineKeyboardMarkup(keyboard)
-    )
-
-async def comment_received(update, context):
-    if context.user_data.get('step') != 'comment':
-        return
-    context.user_data['comment'] = update.message.text
-    await show_confirmation(update, context)
+async def handle_text(update, context):
+    step = context.user_data.get('step')
+    
+    if step == 'address':
+        context.user_data['address'] = update.message.text
+        context.user_data['step'] = 'client'
+        keyboard = [[InlineKeyboardButton("◀️ Назад", callback_data="back")]]
+        await update.message.reply_text(
+            "Введите клиента:\n\n"
+            "<i>Следует перечислить реквизиты клиента в одну строку, например: Елена, 89990004422.</i>\n\n"
+            "<i>Если необходимо перечислить несколько реквизитов и/или какие-либо пояснения к реквизитам, следует делать это также в одной строке с явным визуальным разделением, например: \"Елена (собственник, по оплате), 89990004422. Анастасия (арендатор, для планирования выезда), 89997776655\"</i>",
+            parse_mode='HTML',
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+    elif step == 'client':
+        context.user_data['client'] = update.message.text
+        context.user_data['step'] = 'comment'
+        keyboard = [[InlineKeyboardButton("◀️ Назад", callback_data="back")]]
+        await update.message.reply_text(
+            "Введите комментарий:\n\n"
+            "<i>Следует указать комментарий касательно заявки в свободной форме и необходимом объёме, например: <b>Хочет 5 сеток, пенсионерка, просит скидку, бла-бла-бла, свободна только в день летнего солнцестояния с 14:31 до 14:50, представиться напарником Виктора, ориентировал 2600 за сетку</b></i>",
+            parse_mode='HTML',
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+    elif step == 'comment':
+        context.user_data['comment'] = update.message.text
+        await show_confirmation(update, context)
 
 async def show_confirmation(update, context):
     data = context.user_data
@@ -170,6 +165,15 @@ async def confirm_callback(update, context):
     if query.data == "cancel":
         await query.edit_message_text("❌ Отменено.")
         context.user_data.clear()
+        # Показать главное меню
+        keyboard = [
+            [InlineKeyboardButton("СОЗДАТЬ ЗАЯВКУ", callback_data="create_order")],
+            [InlineKeyboardButton("РАСПРЕДЕЛИТЬ СУЩЕСТВУЮЩУЮ ЗАЯВКУ", callback_data="distribute_order")]
+        ]
+        await query.message.reply_text(
+            "Выберите действие:",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
     elif query.data == "back":
         await go_back(update, context)
     elif query.data == "submit":
@@ -216,7 +220,7 @@ async def go_back(update, context):
         await query.edit_message_text(
             "Введите клиента:\n\n"
             "<i>Следует перечислить реквизиты клиента в одну строку, например: Елена, 89990004422.</i>\n\n"
-            "<i>Jika perlu untuk mencantumkan beberapa requisits dan/atau penjelasan untuk requisits, hal ini juga harus dilakukan dalam satu baris dengan pemisahan visual yang jelas, misalnya: \"Елена (pemilik, untuk pembayaran), 89990004422. Anastasia (penyewa, untuk perencanaan keberangkatan), 89997776655\"</i>",
+            "<i>Если необходимо перечислить несколько реквизитов и/или какие-либо пояснения к реквизитам, следует делать это также в одной строке с явным визуальным разделением, например: \"Елена (собственник, по оплате), 89990004422. Анастасия (арендатор, для планирования выезда), 89997776655\"</i>",
             parse_mode='HTML',
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
@@ -275,9 +279,7 @@ def run_webhook():
     telegram_app.add_handler(CallbackQueryHandler(source_callback, pattern="^(src_|cancel)$"))
     telegram_app.add_handler(CallbackQueryHandler(confirm_callback, pattern="^(submit|back|cancel)$"))
     telegram_app.add_handler(CallbackQueryHandler(go_back, pattern="^back$"))
-    telegram_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, address_received))
-    telegram_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, client_received))
-    telegram_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, comment_received))
+    telegram_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
     
     main_loop = asyncio.new_event_loop()
     asyncio.set_event_loop(main_loop)
