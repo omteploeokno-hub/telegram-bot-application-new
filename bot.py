@@ -216,7 +216,8 @@ async def button_handler(update, context):
                     'receipt_date': row[2] if len(row) > 2 else '',  # C
                     'client': row[4] if len(row) > 4 else '',  # E
                     'address': row[5] if len(row) > 5 else '',  # F
-                    'comment': row[6] if len(row) > 6 else ''  # G
+                    'comment': row[6] if len(row) > 6 else '',  # G
+                    'redirect': row[7] if len(row) > 7 else ''  # H (На перенаправление)
                 })
         
         if not orders:
@@ -228,7 +229,10 @@ async def button_handler(update, context):
         # Формируем текст списка
         text = "Список нераспределённых (новых) заявок:\n\n"
         for i, order in enumerate(orders, start=1):
-            text += f"{i}. ID: {order['id']} / Источник заявки: {order['source']} / Дата создания: {order['receipt_date']} / Клиент: {order['client']} / Адрес: {order['address']} / Комментарий: {order['comment']}\n\n"
+            order_text = f"{i}. ID: {order['id']} / Источник заявки: {order['source']} / Дата создания: {order['receipt_date']} / Клиент: {order['client']} / Адрес: {order['address']} / Комментарий: {order['comment']}"
+            if order.get('redirect') == "Да":
+                order_text += " ❗ Перенаправить"
+            text += order_text + "\n\n"
         
         # Создаём кнопки с номерами
         keyboard = []
