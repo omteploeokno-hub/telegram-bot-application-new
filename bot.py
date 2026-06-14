@@ -249,7 +249,8 @@ async def button_handler(update, context):
         
         await query.edit_message_text(
             text,
-            reply_markup=InlineKeyboardMarkup(keyboard)
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode='HTML'
         )
         print("DEBUG: список распределения отправлен")
 
