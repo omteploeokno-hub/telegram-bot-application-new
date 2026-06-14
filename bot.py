@@ -165,15 +165,7 @@ async def confirm_callback(update, context):
     if query.data == "cancel":
         await query.edit_message_text("❌ Отменено.")
         context.user_data.clear()
-        # Показать главное меню
-        keyboard = [
-            [InlineKeyboardButton("СОЗДАТЬ ЗАЯВКУ", callback_data="create_order")],
-            [InlineKeyboardButton("РАСПРЕДЕЛИТЬ СУЩЕСТВУЮЩУЮ ЗАЯВКУ", callback_data="distribute_order")]
-        ]
-        await query.message.reply_text(
-            "Выберите действие:",
-            reply_markup=InlineKeyboardMarkup(keyboard)
-        )
+        await show_main_menu(query.message, context)
     elif query.data == "back":
         await go_back(update, context)
     elif query.data == "submit":
@@ -182,15 +174,7 @@ async def confirm_callback(update, context):
         save_order_to_sheet(data)
         await query.edit_message_text("✅ Заявка успешно сохранена в Первичный пул.")
         context.user_data.clear()
-        # Показать главное меню
-        keyboard = [
-            [InlineKeyboardButton("СОЗДАТЬ ЗАЯВКУ", callback_data="create_order")],
-            [InlineKeyboardButton("РАСПРЕДЕЛИТЬ СУЩЕСТВУЮЩУЮ ЗАЯВКУ", callback_data="distribute_order")]
-        ]
-        await query.message.reply_text(
-            "Выберите действие:",
-            reply_markup=InlineKeyboardMarkup(keyboard)
-        )
+        await show_main_menu(query.message, context)
 
 async def go_back(update, context):
     query = update.callback_query
@@ -237,12 +221,14 @@ async def go_back(update, context):
 async def cancel_handler(update, context):
     context.user_data.clear()
     await update.message.reply_text("❌ Отменено.")
-    # Показать главное меню
+    await show_main_menu(update.message, context)
+
+async def show_main_menu(message, context):
     keyboard = [
         [InlineKeyboardButton("СОЗДАТЬ ЗАЯВКУ", callback_data="create_order")],
         [InlineKeyboardButton("РАСПРЕДЕЛИТЬ СУЩЕСТВУЮЩУЮ ЗАЯВКУ", callback_data="distribute_order")]
     ]
-    await update.message.reply_text(
+    await message.reply_text(
         "Выберите действие:",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
