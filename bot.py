@@ -98,7 +98,7 @@ def save_order_to_general_pool(data, order_id):
     sheet.update(range_name=f'G{row}', values=[["Создана, не распределена"]])
     print("DEBUG: данные сохранены в общий пул")
 
-def save_order_to_sheet(data):
+def save_order_to_sheet(data, admin_name="Неизвестный"):
     print("DEBUG: save_order_to_sheet вызван")
     
     # Генерируем ID
@@ -143,12 +143,13 @@ def save_order_to_sheet(data):
     except Exception as e:
         print(f"DEBUG: не удалось отправить уведомление: {e}")
     
-    # Отправка в группу логов движения заявок с датой и временем
+    # Отправка в группу логов движения заявок с датой, временем и именем администратора
     try:
         logs_chat_id = -5316127083
-        log_text = f"🟢 {date_time_str} создана новая заявка, присвоен ID #{order_id}"
+        log_text = f"🟢 {date_time_str} создана новая заявка, присвоен ID #{order_id}\n\n"
+        log_text += f"<i>Действие совершил: \"{admin_name}\"</i>"
         asyncio.run_coroutine_threadsafe(
-            telegram_app.bot.send_message(chat_id=logs_chat_id, text=log_text),
+            telegram_app.bot.send_message(chat_id=logs_chat_id, text=log_text, parse_mode='HTML'),
             main_loop
         )
         print("DEBUG: уведомление отправлено в группу логов")
@@ -295,7 +296,7 @@ async def handle_text(update, context):
         await update.message.reply_text(
             "Введите клиента:\n\n"
             "<i>Следует перечислить реквизиты клиента в одну строку, например: Елена, 89990004422.</i>\n\n"
-            "<i>Jika perlu untuk mencantumkan beberapa requisits dan/atau penjelasan untuk requisits, hal ini juga harus dilakukan dalam satu baris с pemisahan visual yang jelas, misalnya: \"Елена (pemilik, untuk pembayaran), 89990004422. Anastasia (penyewa, untuk perencanaan keberangkatan), 89997776655\"</i>",
+            "<i>Jika perlu untuk mencantumkan beberapa requisits dan/atau penjelasan untuk requisits, hal ini juga harus dilakukan dalam satu baris dengan pemisahan visual yang jelas, misalnya: \"Елена (pemilik, untuk pembayaran), 89990004422. Anastasia (penyewa, untuk perencanaan keberangkatan), 89997776655\"</i>",
             parse_mode='HTML',
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
@@ -360,7 +361,13 @@ async def confirm_callback(update, context):
         data = context.user_data
         data['receipt_date'] = datetime.now(EKATERINBURG_TZ).strftime("%d.%m.%Y")
         print(f"DEBUG: дата = {data['receipt_date']}")
-        save_order_to_sheet(data)
+        
+        # Получаем имя администратора
+        admin_name = update.effective_user.first_name
+        if update.effective_user.last_name:
+            admin_name += f" {update.effective_user.last_name}"
+        
+        save_order_to_sheet(data, admin_name)
         await query.edit_message_text("✅ Заявка успешно сохранена в Первичный пул.")
         context.user_data.clear()
         await show_main_menu(query.message, context)
