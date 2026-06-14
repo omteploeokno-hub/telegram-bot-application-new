@@ -149,7 +149,7 @@ def save_order_to_sheet(data, admin_name="Неизвестный"):
         log_text = f"🟢 {date_time_str} создана новая заявка, присвоен ID #{order_id}\n\n"
         log_text += f"<i>Действие совершил: \"{admin_name}\"</i>"
         asyncio.run_coroutine_threadsafe(
-            telegram_app.bot.send_message(chat_id=logs_chat_id, text=log_text, parse_mode='HTML'),
+            telegram_app.bot.send_message(chat_id=logs_chat_id, text=log_text,),
             main_loop
         )
         print("DEBUG: уведомление отправлено в группу логов")
