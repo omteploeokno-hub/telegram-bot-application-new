@@ -8,9 +8,13 @@ from telegram.ext import Application, CommandHandler, CallbackQueryHandler, Mess
 import gspread
 from google.oauth2.service_account import Credentials
 
+print("1. Начало импорта...")
+
 TOKEN = os.environ.get('ADMIN_TOKEN')
 if not TOKEN:
     raise ValueError("ADMIN_TOKEN не установлен!")
+
+print("2. Токен получен")
 
 SPREADSHEET_NAME = "Indev"
 PRIMARY_POOL_SHEET = "Первичный пул заявок"
@@ -24,12 +28,17 @@ SOURCE_OPTIONS = [
     "MAX", "Рекомендация", "Повторное", "От работника", "Другое", "н/у"
 ]
 
+print("3. Константы загружены")
+
 flask_app = Flask(__name__)
 telegram_app = None
 main_loop = None
 
+print("4. Flask приложение создано")
+
 # ========== GOOGLE SHEETS ==========
 def get_worksheet(sheet_name):
+    print(f"DEBUG: get_worksheet вызван для {sheet_name}")
     creds_json = os.environ.get('GOOGLE_CREDENTIALS')
     if not creds_json:
         raise Exception("GOOGLE_CREDENTIALS не установлена!")
@@ -43,28 +52,40 @@ def get_worksheet(sheet_name):
     return client.open(SPREADSHEET_NAME).worksheet(sheet_name)
 
 def get_next_empty_row(sheet):
+    print(f"DEBUG: get_next_empty_row вызван")
     all_values = sheet.get_all_values()
     for idx, row in enumerate(all_values, start=1):
         if all(cell == '' for cell in row):
+            print(f"DEBUG: найдена пустая строка {idx}")
             return idx
-    return len(all_values) + 1
+    new_row = len(all_values) + 1
+    print(f"DEBUG: все строки заняты, новая строка {new_row}")
+    return new_row
 
 def save_order_to_sheet(data):
+    print("DEBUG: save_order_to_sheet вызван")
     sheet = get_worksheet(PRIMARY_POOL_SHEET)
     row = get_next_empty_row(sheet)
+    print(f"DEBUG: сохраняем в строку {row}")
     sheet.update(f'B{row}', [[data['source']]])
     sheet.update(f'C{row}', [[data['receipt_date']]])
     sheet.update(f'E{row}', [[data['client']]])
     sheet.update(f'F{row}', [[data['address']]])
     sheet.update(f'G{row}', [[data['comment']]])
+    print("DEBUG: данные сохранены")
 
 # ========== КОМАНДЫ ==========
 async def start(update, context):
+    print("DEBUG: start функция вызвана")
     user_id = update.effective_user.id
+    print(f"DEBUG: user_id = {user_id}")
+    
     if user_id not in ADMINS:
+        print(f"DEBUG: доступ запрещён для {user_id}")
         await update.message.reply_text("Доступ запрещён.")
         return
     
+    print("DEBUG: доступ разрешён")
     context.user_data.clear()
     keyboard = [
         [InlineKeyboardButton("СОЗДАТЬ ЗАЯВКУ", callback_data="create_order")],
@@ -74,12 +95,16 @@ async def start(update, context):
         "Выберите действие:",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
+    print("DEBUG: главное меню отправлено")
 
 async def button_handler(update, context):
+    print("DEBUG: button_handler вызван")
     query = update.callback_query
+    print(f"DEBUG: query.data = {query.data}")
     await query.answer()
     
     if query.data == "create_order":
+        print("DEBUG: выбрано create_order")
         context.user_data.clear()
         context.user_data['step'] = 'source'
         keyboard = [[InlineKeyboardButton(opt, callback_data=f"src_{opt}")] for opt in SOURCE_OPTIONS]
@@ -88,20 +113,26 @@ async def button_handler(update, context):
             "Выберите источник заявки:",
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
+        print("DEBUG: меню выбора источника отправлено")
     elif query.data == "distribute_order":
+        print("DEBUG: выбрано distribute_order")
         await query.edit_message_text("Функция распределения заявок в разработке.")
 
 async def source_callback(update, context):
+    print("DEBUG: source_callback вызван")
     query = update.callback_query
+    print(f"DEBUG: query.data = {query.data}")
     await query.answer()
     
     if query.data == "cancel":
+        print("DEBUG: нажата отмена")
         await query.edit_message_text("❌ Отменено.")
         context.user_data.clear()
         return
     
     if query.data.startswith("src_"):
         source = query.data.split('_', 1)[1]
+        print(f"DEBUG: выбран источник: {source}")
         context.user_data['source'] = source
         context.user_data['step'] = 'address'
         keyboard = [[InlineKeyboardButton("◀️ Назад", callback_data="back")]]
@@ -110,23 +141,31 @@ async def source_callback(update, context):
             parse_mode='HTML',
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
+        print("DEBUG: запрос адреса отправлен")
 
 async def handle_text(update, context):
+    print("DEBUG: handle_text вызван")
     step = context.user_data.get('step')
+    print(f"DEBUG: текущий step = {step}")
+    user_text = update.message.text
+    print(f"DEBUG: текст пользователя = {user_text}")
     
     if step == 'address':
-        context.user_data['address'] = update.message.text
+        print("DEBUG: обработка адреса")
+        context.user_data['address'] = user_text
         context.user_data['step'] = 'client'
         keyboard = [[InlineKeyboardButton("◀️ Назад", callback_data="back")]]
         await update.message.reply_text(
             "Введите клиента:\n\n"
             "<i>Следует перечислить реквизиты клиента в одну строку, например: Елена, 89990004422.</i>\n\n"
-            "<i>Если необходимо перечислить несколько реквизитов и/или какие-либо пояснения к реквизитам, следует делать это также в одной строке с явным визуальным разделением, например: \"Елена (собственник, по оплате), 89990004422. Анастасия (арендатор, для планирования выезда), 89997776655\"</i>",
+            "<i>Jika perlu untuk mencantumkan beberapa requisits dan/atau penjelasan untuk requisits, hal ini juga harus dilakukan dalam satu baris dengan pemisahan visual yang jelas, misalnya: \"Елена (pemilik, untuk pembayaran), 89990004422. Anastasia (penyewa, untuk perencanaan keberangkatan), 89997776655\"</i>",
             parse_mode='HTML',
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
+        print("DEBUG: запрос клиента отправлен")
     elif step == 'client':
-        context.user_data['client'] = update.message.text
+        print("DEBUG: обработка клиента")
+        context.user_data['client'] = user_text
         context.user_data['step'] = 'comment'
         keyboard = [[InlineKeyboardButton("◀️ Назад", callback_data="back")]]
         await update.message.reply_text(
@@ -135,11 +174,17 @@ async def handle_text(update, context):
             parse_mode='HTML',
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
+        print("DEBUG: запрос комментария отправлен")
     elif step == 'comment':
-        context.user_data['comment'] = update.message.text
+        print("DEBUG: обработка комментария")
+        context.user_data['comment'] = user_text
         await show_confirmation(update, context)
+    else:
+        print(f"DEBUG: неизвестный step = {step}")
+        await update.message.reply_text("Начните с /start")
 
 async def show_confirmation(update, context):
+    print("DEBUG: show_confirmation вызван")
     data = context.user_data
     context.user_data['step'] = 'confirm'
     keyboard = [
@@ -157,32 +202,42 @@ async def show_confirmation(update, context):
         parse_mode='HTML',
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
+    print("DEBUG: форма подтверждения отправлена")
 
 async def confirm_callback(update, context):
+    print("DEBUG: confirm_callback вызван")
     query = update.callback_query
+    print(f"DEBUG: query.data = {query.data}")
     await query.answer()
     
     if query.data == "cancel":
+        print("DEBUG: нажата отмена")
         await query.edit_message_text("❌ Отменено.")
         context.user_data.clear()
         await show_main_menu(query.message, context)
     elif query.data == "back":
+        print("DEBUG: нажато назад")
         await go_back(update, context)
     elif query.data == "submit":
+        print("DEBUG: нажато подтверждение")
         data = context.user_data
         data['receipt_date'] = datetime.now(EKATERINBURG_TZ).strftime("%d.%m.%Y")
+        print(f"DEBUG: дата = {data['receipt_date']}")
         save_order_to_sheet(data)
         await query.edit_message_text("✅ Заявка успешно сохранена в Первичный пул.")
         context.user_data.clear()
         await show_main_menu(query.message, context)
 
 async def go_back(update, context):
+    print("DEBUG: go_back вызван")
     query = update.callback_query
     await query.answer()
     
     step = context.user_data.get('step')
+    print(f"DEBUG: текущий step = {step}")
     
     if step == 'address':
+        print("DEBUG: возврат к выбору источника")
         context.user_data['step'] = 'source'
         keyboard = [[InlineKeyboardButton(opt, callback_data=f"src_{opt}")] for opt in SOURCE_OPTIONS]
         keyboard.append([InlineKeyboardButton("❌ Отмена", callback_data="cancel")])
@@ -191,6 +246,7 @@ async def go_back(update, context):
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
     elif step == 'client':
+        print("DEBUG: возврат к вводу адреса")
         context.user_data['step'] = 'address'
         keyboard = [[InlineKeyboardButton("◀️ Назад", callback_data="back")]]
         await query.edit_message_text(
@@ -199,16 +255,18 @@ async def go_back(update, context):
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
     elif step == 'comment':
+        print("DEBUG: возврат к вводу клиента")
         context.user_data['step'] = 'client'
         keyboard = [[InlineKeyboardButton("◀️ Назад", callback_data="back")]]
         await query.edit_message_text(
             "Введите клиента:\n\n"
             "<i>Следует перечислить реквизиты клиента в одну строку, например: Елена, 89990004422.</i>\n\n"
-            "<i>Если необходимо перечислить несколько реквизитов и/или какие-либо пояснения к реквизитам, следует делать это также в одной строке с явным визуальным разделением, например: \"Елена (собственник, по оплате), 89990004422. Анастасия (арендатор, для планирования выезда), 89997776655\"</i>",
+            "<i>Jika perlu untuk mencantumkan beberapa requisits dan/atau penjelasan untuk requisits, hal ini juga harus dilakukan dalam satu baris dengan pemisahan visual yang jelas, misalnya: \"Елена (pemilik, untuk pembayaran), 89990004422. Anastasia (penyewa, untuk perencanaan keberangkatan), 89997776655\"</i>",
             parse_mode='HTML',
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
     elif step == 'confirm':
+        print("DEBUG: возврат к вводу комментария")
         context.user_data['step'] = 'comment'
         keyboard = [[InlineKeyboardButton("◀️ Назад", callback_data="back")]]
         await query.edit_message_text(
@@ -219,11 +277,13 @@ async def go_back(update, context):
         )
 
 async def cancel_handler(update, context):
+    print("DEBUG: cancel_handler вызван")
     context.user_data.clear()
     await update.message.reply_text("❌ Отменено.")
     await show_main_menu(update.message, context)
 
 async def show_main_menu(message, context):
+    print("DEBUG: show_main_menu вызван")
     keyboard = [
         [InlineKeyboardButton("СОЗДАТЬ ЗАЯВКУ", callback_data="create_order")],
         [InlineKeyboardButton("РАСПРЕДЕЛИТЬ СУЩЕСТВУЮЩУЮ ЗАЯВКУ", callback_data="distribute_order")]
@@ -232,6 +292,7 @@ async def show_main_menu(message, context):
         "Выберите действие:",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
+    print("DEBUG: главное меню отправлено")
 
 # ========== ВЕБХУК ==========
 @flask_app.route('/webhook', methods=['POST'])
@@ -281,6 +342,8 @@ def run_webhook():
     import threading
     threading.Thread(target=run_flask, daemon=True).start()
     main_loop.run_forever()
+
+print("5. Всё загружено, запускаем...")
 
 if __name__ == '__main__':
     run_webhook()
