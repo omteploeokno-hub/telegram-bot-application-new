@@ -217,7 +217,8 @@ async def button_handler(update, context):
                     'client': row[4] if len(row) > 4 else '',  # E
                     'address': row[5] if len(row) > 5 else '',  # F
                     'comment': row[6] if len(row) > 6 else '',  # G
-                    'redirect': row[7] if len(row) > 7 else ''  # H (На перенаправление)
+                    'redirect': row[7] if len(row) > 7 else '',  # H (На перенаправление)
+                    'redirect_date': row[8] if len(row) > 8 else ''  # I (Дата отказа)
                 })
         
         if not orders:
@@ -230,8 +231,14 @@ async def button_handler(update, context):
         text = "Список нераспределённых (новых) заявок:\n\n"
         for i, order in enumerate(orders, start=1):
             order_text = f"{i}. ID: {order['id']} / Источник заявки: {order['source']} / Дата создания: {order['receipt_date']} / Клиент: {order['client']} / Адрес: {order['address']} / Комментарий: {order['comment']}"
+            
             if order.get('redirect') == "Да":
-                order_text += " /// ❗ Отказ от заявки, перенаправить"
+                order_text += " /// ❗ Отказ от заявки, перенаправить /// "
+                if order.get('redirect_date'):
+                    order_text += f"(Дата отказа: {order['redirect_date']})"
+                else:
+                    order_text += "(нет информации о дате)"
+            
             text += order_text + "\n\n"
         
         # Создаём кнопки с номерами
