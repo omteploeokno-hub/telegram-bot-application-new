@@ -228,7 +228,7 @@ async def button_handler(update, context):
         # Формируем текст списка
         text = "Список нераспределённых (новых) заявок:\n\n"
         for i, order in enumerate(orders, start=1):
-            text += f"{i}. ID: {order['id']} / Источник заявки: {order['source']} / Дата создания: {order['receipt_date']} / Клиент: {order['client']} / Адрес: {order['address']} / Комментарий: {order['comment']}\n"
+            text += f"{i}. ID: {order['id']} / Источник заявки: {order['source']} / Дата создания: {order['receipt_date']} / Клиент: {order['client']} / Адрес: {order['address']} / Комментарий: {order['comment']}\n\n"
         
         # Создаём кнопки с номерами
         keyboard = []
