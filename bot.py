@@ -126,7 +126,7 @@ def save_order_to_sheet(data):
     
     # Отправка уведомления в беседу (создание заявки) с датой и временем
     try:
-        chat_id = -5454540811
+        chat_id = -1004290162574
         notification_text = (
             f"#заявка {data['source']}\n\n"
             f"<i>ID:</i> \"{order_id}\"\n"
