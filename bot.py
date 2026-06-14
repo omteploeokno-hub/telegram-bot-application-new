@@ -63,35 +63,59 @@ def get_next_empty_row(sheet):
     print(f"DEBUG: все строки заняты, новая строка {new_row}")
     return new_row
 
+def generate_next_order_id():
+    print("DEBUG: generate_next_order_id вызван")
+    sheet = get_worksheet(GENERAL_POOL_SHEET)
+    all_ids = sheet.col_values(1)  # столбец A
+    
+    max_num = -1
+    for id_str in all_ids:
+        if id_str and '-B2B' in id_str:
+            try:
+                num_part = id_str.split('-')[0]
+                if num_part.isdigit():
+                    num = int(num_part)
+                    if num > max_num:
+                        max_num = num
+            except:
+                continue
+    
+    next_num = max_num + 1
+    next_id = f"{next_num:06d}-B2B"
+    print(f"DEBUG: сгенерирован ID {next_id}")
+    return next_id
+
 def save_order_to_general_pool(data, order_id):
     print("DEBUG: save_order_to_general_pool вызван")
     sheet = get_worksheet(GENERAL_POOL_SHEET)
     row = get_next_empty_row(sheet)
     print(f"DEBUG: сохраняем в общий пул, строка {row}")
-    sheet.update(range_name=f'A{row}', values=[[order_id]])  # ID заявки
-    sheet.update(range_name=f'B{row}', values=[[data['source']]])  # Источник заявки
-    sheet.update(range_name=f'C{row}', values=[[data['receipt_date']]])  # Дата поступления
-    sheet.update(range_name=f'E{row}', values=[[data['client']]])  # Клиент
-    sheet.update(range_name=f'F{row}', values=[[data['address']]])  # Адрес
-    sheet.update(range_name=f'G{row}', values=[["Создана, не распределена"]])  # Статус
+    sheet.update(range_name=f'A{row}', values=[[order_id]])
+    sheet.update(range_name=f'B{row}', values=[[data['source']]])
+    sheet.update(range_name=f'C{row}', values=[[data['receipt_date']]])
+    sheet.update(range_name=f'E{row}', values=[[data['client']]])
+    sheet.update(range_name=f'F{row}', values=[[data['address']]])
+    sheet.update(range_name=f'G{row}', values=[["Создана, не распределена"]])
     print("DEBUG: данные сохранены в общий пул")
 
 def save_order_to_sheet(data):
     print("DEBUG: save_order_to_sheet вызван")
+    
+    # Генерируем ID
+    order_id = generate_next_order_id()
+    data['order_id'] = order_id
+    
+    # Сохраняем в первичный пул
     sheet = get_worksheet(PRIMARY_POOL_SHEET)
     row = get_next_empty_row(sheet)
     print(f"DEBUG: сохраняем в первичный пул, строка {row}")
+    sheet.update(range_name=f'A{row}', values=[[order_id]])
     sheet.update(range_name=f'B{row}', values=[[data['source']]])
     sheet.update(range_name=f'C{row}', values=[[data['receipt_date']]])
     sheet.update(range_name=f'E{row}', values=[[data['client']]])
     sheet.update(range_name=f'F{row}', values=[[data['address']]])
     sheet.update(range_name=f'G{row}', values=[[data['comment']]])
     print("DEBUG: данные сохранены в первичный пул")
-    
-    # Получаем ID заявки (столбец A, только что созданная строка)
-    order_id = sheet.cell(row, 1).value
-    if not order_id:
-        order_id = "Не указан"
     
     # Сохраняем в общий пул
     save_order_to_general_pool(data, order_id)
