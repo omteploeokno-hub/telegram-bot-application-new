@@ -54,11 +54,11 @@ def get_next_empty_row(sheet):
 def save_order_to_sheet(data):
     sheet = get_worksheet(PRIMARY_POOL_SHEET)
     row = get_next_empty_row(sheet)
-    sheet.update(f'B{row}', data['source'])
-    sheet.update(f'C{row}', data['receipt_date'])
-    sheet.update(f'E{row}', data['client'])
-    sheet.update(f'F{row}', data['address'])
-    sheet.update(f'G{row}', data['comment'])
+    sheet.update(f'B{row}', [[data['source']]])
+    sheet.update(f'C{row}', [[data['receipt_date']]])
+    sheet.update(f'E{row}', [[data['client']]])
+    sheet.update(f'F{row}', [[data['address']]])
+    sheet.update(f'G{row}', [[data['comment']]])
 
 async def start(update, context):
     user_id = update.effective_user.id
