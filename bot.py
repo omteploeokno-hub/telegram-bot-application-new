@@ -45,11 +45,11 @@ def get_worksheet(sheet_name):
     return client.open(SPREADSHEET_NAME).worksheet(sheet_name)
 
 def get_next_empty_row(sheet):
-    col_a = sheet.col_values(1)
-    for idx, val in enumerate(col_a, start=1):
-        if not val:
+    all_values = sheet.get_all_values()
+    for idx, row in enumerate(all_values, start=1):
+        if all(cell == '' for cell in row):
             return idx
-    return len(col_a) + 1
+    return len(all_values) + 1
 
 def save_order_to_sheet(data):
     sheet = get_worksheet(PRIMARY_POOL_SHEET)
