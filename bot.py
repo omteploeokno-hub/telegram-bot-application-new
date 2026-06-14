@@ -20,7 +20,7 @@ telegram_app = None
 main_loop = None
 
 ADMINS = [
-    6067555377,
+    6067555377,5518656277
 ]
 
 # ========== GOOGLE SHEETS ==========
