@@ -233,11 +233,11 @@ async def button_handler(update, context):
             order_text = f"{i}. ID: {order['id']} / Источник заявки: {order['source']} / Дата создания: {order['receipt_date']} / Клиент: {order['client']} / Адрес: {order['address']} / Комментарий: {order['comment']}"
             
             if order.get('redirect') == "Да":
-                order_text += " /// ❗ Отказ от заявки, перенаправить /// "
+                order_text += "\n<b> /// ❗ Отказ от заявки, перенаправить /// </b>"
                 if order.get('redirect_date'):
-                    order_text += f"(Дата отказа: {order['redirect_date']})"
+                    order_text += f" <i>(Дата отказа: {order['redirect_date']})</i>"
                 else:
-                    order_text += "(нет информации о дате)"
+                    order_text += " <i>(нет информации о дате)</i>"
             
             text += order_text + "\n\n"
         
