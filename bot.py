@@ -70,9 +70,9 @@ def generate_next_order_id():
     
     max_num = -1
     for id_str in all_ids:
-        if id_str and '-B2B' in id_str:
+        if id_str and 'B2B' in id_str:
             try:
-                num_part = id_str.split('-')[0]
+                num_part = id_str.split('B2B')[0]
                 if num_part.isdigit():
                     num = int(num_part)
                     if num > max_num:
@@ -81,7 +81,7 @@ def generate_next_order_id():
                 continue
     
     next_num = max_num + 1
-    next_id = f"{next_num:06d}-B2B"
+    next_id = f"{next_num:06d}B2B"
     print(f"DEBUG: сгенерирован ID {next_id}")
     return next_id
 
@@ -105,6 +105,10 @@ def save_order_to_sheet(data):
     order_id = generate_next_order_id()
     data['order_id'] = order_id
     
+    # Получаем текущую дату и время по Екатеринбургу
+    now = datetime.now(EKATERINBURG_TZ)
+    date_time_str = now.strftime("%d.%m.%Y %H:%M UTC+5")
+    
     # Сохраняем в первичный пул
     sheet = get_worksheet(PRIMARY_POOL_SHEET)
     row = get_next_empty_row(sheet)
@@ -120,7 +124,7 @@ def save_order_to_sheet(data):
     # Сохраняем в общий пул
     save_order_to_general_pool(data, order_id)
     
-    # Отправка уведомления в беседу (создание заявки)
+    # Отправка уведомления в беседу (создание заявки) с датой и временем
     try:
         chat_id = -5454540811
         notification_text = (
@@ -128,7 +132,8 @@ def save_order_to_sheet(data):
             f"<i>ID:</i> \"{order_id}\"\n"
             f"<i>Адрес:</i> \"{data['address']}\"\n"
             f"<i>Клиент:</i> \"{data['client']}\"\n"
-            f"<i>Комментарий:</i> \"{data['comment']}\""
+            f"<i>Комментарий:</i> \"{data['comment']}\"\n\n"
+            f"<i>{date_time_str}</i>"
         )
         asyncio.run_coroutine_threadsafe(
             telegram_app.bot.send_message(chat_id=chat_id, text=notification_text, parse_mode='HTML'),
@@ -138,10 +143,10 @@ def save_order_to_sheet(data):
     except Exception as e:
         print(f"DEBUG: не удалось отправить уведомление: {e}")
     
-    # Отправка в группу логов движения заявок
+    # Отправка в группу логов движения заявок с датой и временем
     try:
         logs_chat_id = -5316127083
-        log_text = f"🟢 Создана новая заявка, присвоен ID #{order_id}"
+        log_text = f"🟢 {date_time_str} создана новая заявка, присвоен ID #{order_id}"
         asyncio.run_coroutine_threadsafe(
             telegram_app.bot.send_message(chat_id=logs_chat_id, text=log_text),
             main_loop
@@ -290,7 +295,7 @@ async def handle_text(update, context):
         await update.message.reply_text(
             "Введите клиента:\n\n"
             "<i>Следует перечислить реквизиты клиента в одну строку, например: Елена, 89990004422.</i>\n\n"
-            "<i>Jika perlu untuk mencantumkan beberapa requisits dan/atau penjelasan untuk requisits, hal ini juga harus dilakukan dalam satu baris dengan pemisahan visual yang jelas, misalnya: \"Еlena (pemilik, untuk pembayaran), 89990004422. Anastasia (penyewa, untuk perencanaan keberangkatan), 89997776655\"</i>",
+            "<i>Jika perlu untuk mencantumkan beberapa requisits dan/atau penjelasan untuk requisits, hal ini juga harus dilakukan dalam satu baris с pemisahan visual yang jelas, misalnya: \"Елена (pemilik, untuk pembayaran), 89990004422. Anastasia (penyewa, untuk perencanaan keberangkatan), 89997776655\"</i>",
             parse_mode='HTML',
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
@@ -393,7 +398,7 @@ async def go_back(update, context):
         await query.edit_message_text(
             "Введите клиента:\n\n"
             "<i>Следует перечислить реквизиты клиента в одну строку, например: Елена, 89990004422.</i>\n\n"
-            "<i>Jika perlu untuk mencantumkan beberapa requisits dan/atau penjelasan untuk requisits, hal ini juga harus dilakukan dalam satu baris dengan pemisahan visual yang jelas, misalnya: \"Еlena (pemilik, untuk pembayaran), 89990004422. Anastasia (penyewa, untuk perencanaan keberangkatan), 89997776655\"</i>",
+            "<i>Jika perlu untuk mencantumkan beberapa requisits dan/atau penjelasan untuk requisits, hal ini juga harus dilakukan dalam satu baris dengan pemisahan visual yang jelas, misalnya: \"Елена (pemilik, untuk pembayaran), 89990004422. Anastasia (penyewa, untuk perencanaan keberangkatan), 89997776655\"</i>",
             parse_mode='HTML',
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
