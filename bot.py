@@ -118,11 +118,6 @@ async def button_handler(update, context):
         print("DEBUG: выбрано distribute_order")
         await query.edit_message_text("Функция распределения заявок в разработке.")
 
-async def debug_callback(update, context):
-    print(f"DEBUG: Любой callback: {update.callback_query.data}")
-    await update.callback_query.answer()
-    await update.callback_query.edit_message_text(f"Получен callback: {update.callback_query.data}")
-
 async def source_callback(update, context):
     print("DEBUG: source_callback вызван")
     query = update.callback_query
@@ -327,11 +322,13 @@ def run_webhook():
     
     telegram_app.add_handler(CommandHandler("start", start))
     telegram_app.add_handler(CommandHandler("cancel", cancel_handler))
+    
+    # Обработчики в правильном порядке
     telegram_app.add_handler(CallbackQueryHandler(button_handler, pattern="^(create_order|distribute_order)$"))
-    telegram_app.add_handler(CallbackQueryHandler(debug_callback))  # Временно для отладки
-    telegram_app.add_handler(CallbackQueryHandler(source_callback, pattern="^(src_|cancel)$"))
+    telegram_app.add_handler(CallbackQueryHandler(source_callback, pattern="^src_"))
     telegram_app.add_handler(CallbackQueryHandler(confirm_callback, pattern="^(submit|back|cancel)$"))
     telegram_app.add_handler(CallbackQueryHandler(go_back, pattern="^back$"))
+    
     telegram_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
     
     main_loop = asyncio.new_event_loop()
