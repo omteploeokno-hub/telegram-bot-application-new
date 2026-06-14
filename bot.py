@@ -4,7 +4,7 @@ import asyncio
 from datetime import datetime, timedelta, timezone
 from flask import Flask, request
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ConversationHandler
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters
 import gspread
 from google.oauth2.service_account import Credentials
 
@@ -19,8 +19,6 @@ EKATERINBURG_TZ = timezone(timedelta(hours=5))
 
 ADMINS = [6067555377, 5518656277]
 
-SOURCE, ADDRESS, CLIENT, COMMENT, CONFIRM = range(5)
-
 SOURCE_OPTIONS = [
     "ПРОФИ", "Сайт форма", "Звонок", "Telegram", "WhatsApp",
     "MAX", "Рекомендация", "Повторное", "От работника", "Другое", "н/у"
@@ -30,6 +28,7 @@ flask_app = Flask(__name__)
 telegram_app = None
 main_loop = None
 
+# ========== GOOGLE SHEETS ==========
 def get_worksheet(sheet_name):
     creds_json = os.environ.get('GOOGLE_CREDENTIALS')
     if not creds_json:
@@ -59,12 +58,14 @@ def save_order_to_sheet(data):
     sheet.update(f'F{row}', [[data['address']]])
     sheet.update(f'G{row}', [[data['comment']]])
 
+# ========== КОМАНДЫ ==========
 async def start(update, context):
     user_id = update.effective_user.id
     if user_id not in ADMINS:
         await update.message.reply_text("Доступ запрещён.")
         return
     
+    context.user_data.clear()
     keyboard = [
         [InlineKeyboardButton("СОЗДАТЬ ЗАЯВКУ", callback_data="create_order")],
         [InlineKeyboardButton("РАСПРЕДЕЛИТЬ СУЩЕСТВУЮЩУЮ ЗАЯВКУ", callback_data="distribute_order")]
@@ -80,43 +81,41 @@ async def button_handler(update, context):
     
     if query.data == "create_order":
         context.user_data.clear()
-        await query.edit_message_text("Отмена")
+        context.user_data['step'] = 'source'
         keyboard = [[InlineKeyboardButton(opt, callback_data=f"src_{opt}")] for opt in SOURCE_OPTIONS]
         keyboard.append([InlineKeyboardButton("❌ Отмена", callback_data="cancel")])
         await query.edit_message_text(
             "Выберите источник заявки:",
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
-        return SOURCE
     elif query.data == "distribute_order":
         await query.edit_message_text("Функция распределения заявок в разработке.")
-        return ConversationHandler.END
 
-async def source_selected(update, context):
+async def source_callback(update, context):
     query = update.callback_query
     await query.answer()
     
     if query.data == "cancel":
         await query.edit_message_text("❌ Отменено.")
         context.user_data.clear()
-        return ConversationHandler.END
+        return
     
-    source = query.data.split('_', 1)[1]
-    context.user_data['source'] = source
-    context.user_data['step'] = 'address'
-    
-    keyboard = [[InlineKeyboardButton("◀️ Назад", callback_data="back")]]
-    await query.edit_message_text(
-        "Введите адрес:\n\n<i>Например, ул. Опалихинская, д. 20, подъезд 3, этаж 5, кв. 228</i>",
-        parse_mode='HTML',
-        reply_markup=InlineKeyboardMarkup(keyboard)
-    )
-    return ADDRESS
+    if query.data.startswith("src_"):
+        source = query.data.split('_', 1)[1]
+        context.user_data['source'] = source
+        context.user_data['step'] = 'address'
+        keyboard = [[InlineKeyboardButton("◀️ Назад", callback_data="back")]]
+        await query.edit_message_text(
+            "Введите адрес:\n\n<i>Например, ул. Опалихинская, д. 20, подъезд 3, этаж 5, кв. 228</i>",
+            parse_mode='HTML',
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
 
 async def address_received(update, context):
+    if context.user_data.get('step') != 'address':
+        return
     context.user_data['address'] = update.message.text
     context.user_data['step'] = 'client'
-    
     keyboard = [[InlineKeyboardButton("◀️ Назад", callback_data="back")]]
     await update.message.reply_text(
         "Введите клиента:\n\n"
@@ -125,12 +124,12 @@ async def address_received(update, context):
         parse_mode='HTML',
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
-    return CLIENT
 
 async def client_received(update, context):
+    if context.user_data.get('step') != 'client':
+        return
     context.user_data['client'] = update.message.text
     context.user_data['step'] = 'comment'
-    
     keyboard = [[InlineKeyboardButton("◀️ Назад", callback_data="back")]]
     await update.message.reply_text(
         "Введите комментарий:\n\n"
@@ -138,15 +137,16 @@ async def client_received(update, context):
         parse_mode='HTML',
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
-    return COMMENT
 
 async def comment_received(update, context):
+    if context.user_data.get('step') != 'comment':
+        return
     context.user_data['comment'] = update.message.text
     await show_confirmation(update, context)
-    return CONFIRM
 
 async def show_confirmation(update, context):
     data = context.user_data
+    context.user_data['step'] = 'confirm'
     keyboard = [
         [InlineKeyboardButton("✅ Сформировать заявку", callback_data="submit")],
         [InlineKeyboardButton("◀️ Назад", callback_data="back")],
@@ -162,55 +162,6 @@ async def show_confirmation(update, context):
         parse_mode='HTML',
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
-    context.user_data['step'] = 'confirm'
-
-async def go_back(update, context):
-    query = update.callback_query
-    await query.answer()
-    
-    step = context.user_data.get('step')
-    
-    if step == 'address':
-        # Вернуться к выбору источника
-        keyboard = [[InlineKeyboardButton(opt, callback_data=f"src_{opt}")] for opt in SOURCE_OPTIONS]
-        keyboard.append([InlineKeyboardButton("❌ Отмена", callback_data="cancel")])
-        await query.edit_message_text(
-            "Выберите источник заявки:",
-            reply_markup=InlineKeyboardMarkup(keyboard)
-        )
-        return SOURCE
-    elif step == 'client':
-        # Вернуться к вводу адреса
-        keyboard = [[InlineKeyboardButton("◀️ Назад", callback_data="back")]]
-        await query.edit_message_text(
-            "Введите адрес:\n\n<i>Например, ул. Опалихинская, д. 20, подъезд 3, этаж 5, кв. 228</i>",
-            parse_mode='HTML',
-            reply_markup=InlineKeyboardMarkup(keyboard)
-        )
-        return ADDRESS
-    elif step == 'comment':
-        # Вернуться к вводу клиента
-        keyboard = [[InlineKeyboardButton("◀️ Назад", callback_data="back")]]
-        await query.edit_message_text(
-            "Введите клиента:\n\n"
-            "<i>Следует перечислить реквизиты клиента в одну строку, например: Елена, 89990004422.</i>\n\n"
-            "<i>Если необходимо перечислить несколько реквизитов и/или какие-либо пояснения к реквизитам, следует делать это также в одной строке с явным визуальным разделением, например: \"Елена (собственник, по оплате), 89990004422. Анастасия (арендатор, для планирования выезда), 89997776655\"</i>",
-            parse_mode='HTML',
-            reply_markup=InlineKeyboardMarkup(keyboard)
-        )
-        return CLIENT
-    elif step == 'confirm':
-        # Вернуться к вводу комментария
-        keyboard = [[InlineKeyboardButton("◀️ Назад", callback_data="back")]]
-        await query.edit_message_text(
-            "Введите комментарий:\n\n"
-            "<i>Следует указать комментарий касательно заявки в свободной форме и необходимом объёме, например: <b>Хочет 5 сеток, пенсионерка, просит скидку, бла-бла-бла, свободна только в день летнего солнцестояния с 14:31 до 14:50, представиться напарником Виктора, ориентировал 2600 за сетку</b></i>",
-            parse_mode='HTML',
-            reply_markup=InlineKeyboardMarkup(keyboard)
-        )
-        return COMMENT
-    
-    return ConversationHandler.END
 
 async def confirm_callback(update, context):
     query = update.callback_query
@@ -219,22 +170,80 @@ async def confirm_callback(update, context):
     if query.data == "cancel":
         await query.edit_message_text("❌ Отменено.")
         context.user_data.clear()
-        return ConversationHandler.END
     elif query.data == "back":
-        return await go_back(update, context)
+        await go_back(update, context)
     elif query.data == "submit":
         data = context.user_data
         data['receipt_date'] = datetime.now(EKATERINBURG_TZ).strftime("%d.%m.%Y")
         save_order_to_sheet(data)
         await query.edit_message_text("✅ Заявка успешно сохранена в Первичный пул.")
         context.user_data.clear()
-        return ConversationHandler.END
+        # Показать главное меню
+        keyboard = [
+            [InlineKeyboardButton("СОЗДАТЬ ЗАЯВКУ", callback_data="create_order")],
+            [InlineKeyboardButton("РАСПРЕДЕЛИТЬ СУЩЕСТВУЮЩУЮ ЗАЯВКУ", callback_data="distribute_order")]
+        ]
+        await query.message.reply_text(
+            "Выберите действие:",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
 
-async def cancel(update, context):
+async def go_back(update, context):
+    query = update.callback_query
+    await query.answer()
+    
+    step = context.user_data.get('step')
+    
+    if step == 'address':
+        context.user_data['step'] = 'source'
+        keyboard = [[InlineKeyboardButton(opt, callback_data=f"src_{opt}")] for opt in SOURCE_OPTIONS]
+        keyboard.append([InlineKeyboardButton("❌ Отмена", callback_data="cancel")])
+        await query.edit_message_text(
+            "Выберите источник заявки:",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+    elif step == 'client':
+        context.user_data['step'] = 'address'
+        keyboard = [[InlineKeyboardButton("◀️ Назад", callback_data="back")]]
+        await query.edit_message_text(
+            "Введите адрес:\n\n<i>Например, ул. Опалихинская, д. 20, подъезд 3, этаж 5, кв. 228</i>",
+            parse_mode='HTML',
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+    elif step == 'comment':
+        context.user_data['step'] = 'client'
+        keyboard = [[InlineKeyboardButton("◀️ Назад", callback_data="back")]]
+        await query.edit_message_text(
+            "Введите клиента:\n\n"
+            "<i>Следует перечислить реквизиты клиента в одну строку, например: Елена, 89990004422.</i>\n\n"
+            "<i>Jika perlu untuk mencantumkan beberapa requisits dan/atau penjelasan untuk requisits, hal ini juga harus dilakukan dalam satu baris dengan pemisahan visual yang jelas, misalnya: \"Елена (pemilik, untuk pembayaran), 89990004422. Anastasia (penyewa, untuk perencanaan keberangkatan), 89997776655\"</i>",
+            parse_mode='HTML',
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+    elif step == 'confirm':
+        context.user_data['step'] = 'comment'
+        keyboard = [[InlineKeyboardButton("◀️ Назад", callback_data="back")]]
+        await query.edit_message_text(
+            "Введите комментарий:\n\n"
+            "<i>Следует указать комментарий касательно заявки в свободной форме и необходимом объёме, например: <b>Хочет 5 сеток, пенсионерка, просит скидку, бла-бла-бла, свободна только в день летнего солнцестояния с 14:31 до 14:50, представиться напарником Виктора, ориентировал 2600 за сетку</b></i>",
+            parse_mode='HTML',
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+
+async def cancel_handler(update, context):
     context.user_data.clear()
     await update.message.reply_text("❌ Отменено.")
-    return ConversationHandler.END
+    # Показать главное меню
+    keyboard = [
+        [InlineKeyboardButton("СОЗДАТЬ ЗАЯВКУ", callback_data="create_order")],
+        [InlineKeyboardButton("РАСПРЕДЕЛИТЬ СУЩЕСТВУЮЩУЮ ЗАЯВКУ", callback_data="distribute_order")]
+    ]
+    await update.message.reply_text(
+        "Выберите действие:",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
 
+# ========== ВЕБХУК ==========
 @flask_app.route('/webhook', methods=['POST'])
 def webhook():
     global telegram_app, main_loop
@@ -254,24 +263,21 @@ def webhook():
 def home():
     return "Admin bot works"
 
+# ========== ЗАПУСК ==========
 def run_webhook():
     global telegram_app, main_loop
     
-    conv_handler = ConversationHandler(
-        entry_points=[CallbackQueryHandler(button_handler, pattern="^create_order$")],
-        states={
-            SOURCE: [CallbackQueryHandler(source_selected, pattern="^(src_|cancel)$")],
-            ADDRESS: [CallbackQueryHandler(go_back, pattern="^back$"), MessageHandler(filters.TEXT & ~filters.COMMAND, address_received)],
-            CLIENT: [CallbackQueryHandler(go_back, pattern="^back$"), MessageHandler(filters.TEXT & ~filters.COMMAND, client_received)],
-            COMMENT: [CallbackQueryHandler(go_back, pattern="^back$"), MessageHandler(filters.TEXT & ~filters.COMMAND, comment_received)],
-            CONFIRM: [CallbackQueryHandler(confirm_callback, pattern="^(submit|back|cancel)$")],
-        },
-        fallbacks=[CommandHandler("cancel", cancel)]
-    )
-    
     telegram_app = Application.builder().token(TOKEN).build()
+    
     telegram_app.add_handler(CommandHandler("start", start))
-    telegram_app.add_handler(conv_handler)
+    telegram_app.add_handler(CommandHandler("cancel", cancel_handler))
+    telegram_app.add_handler(CallbackQueryHandler(button_handler, pattern="^(create_order|distribute_order)$"))
+    telegram_app.add_handler(CallbackQueryHandler(source_callback, pattern="^(src_|cancel)$"))
+    telegram_app.add_handler(CallbackQueryHandler(confirm_callback, pattern="^(submit|back|cancel)$"))
+    telegram_app.add_handler(CallbackQueryHandler(go_back, pattern="^back$"))
+    telegram_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, address_received))
+    telegram_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, client_received))
+    telegram_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, comment_received))
     
     main_loop = asyncio.new_event_loop()
     asyncio.set_event_loop(main_loop)
