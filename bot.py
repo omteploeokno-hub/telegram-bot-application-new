@@ -17,7 +17,7 @@ PRIMARY_POOL_SHEET = "Первичный пул заявок"
 
 EKATERINBURG_TZ = timezone(timedelta(hours=5))
 
-ADMINS = [6067555377]
+ADMINS = [6067555377,5518656277]
 
 # Состояния разговора
 SOURCE, ADDRESS, CLIENT, COMMENT, CONFIRM = range(5)
