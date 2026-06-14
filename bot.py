@@ -3,7 +3,7 @@ import json
 import asyncio
 from datetime import datetime, timedelta, timezone
 from flask import Flask, request
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, MessageEntity
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters
 import gspread
 from google.oauth2.service_account import Credentials
@@ -129,10 +129,10 @@ def save_order_to_sheet(data, admin_name="Неизвестный"):
         chat_id = -1004290162574
         notification_text = (
             f"#заявка {data['source']}\n\n"
-            f"<i>ID:</i> \"{order_id}\"\n"
-            f"<i>Адрес:</i> \"{data['address']}\"\n"
-            f"<i>Клиент:</i> \"{data['client']}\"\n"
-            f"<i>Комментарий:</i> \"{data['comment']}\"\n\n"
+            f"<i>ID:</i> {order_id}\n"
+            f"<i>Адрес:</i> {data['address']}\n"
+            f"<i>Клиент:</i> {data['client']}\n"
+            f"<i>Комментарий:</i> {data['comment']}\n\n"
             f"<i>{date_time_str}</i>"
         )
         asyncio.run_coroutine_threadsafe(
@@ -143,24 +143,13 @@ def save_order_to_sheet(data, admin_name="Неизвестный"):
     except Exception as e:
         print(f"DEBUG: не удалось отправить уведомление: {e}")
     
-    # Отправка в группу логов движения заявок с датой, временем и именем администратора (через MessageEntity)
+    # Отправка в группу логов движения заявок с датой, временем и именем администратора
     try:
         logs_chat_id = -5316127083
         log_text = f"🟢 {date_time_str} создана новая заявка, присвоен ID #{order_id}\n\n"
-        log_text += f"Действие совершил: \"{admin_name}\""
-        
-        # Находим позицию хэштега
-        hashtag_str = f"#{order_id}"
-        hashtag_start = log_text.find(hashtag_str)
-        
-        if hashtag_start != -1:
-            # Создаём сущность для хэштега
-            entities = [MessageEntity(type="hashtag", offset=hashtag_start, length=len(hashtag_str))]
-        else:
-            entities = None
-        
+        log_text += f"<i>Действие совершил: \"{admin_name}\"</i>"
         asyncio.run_coroutine_threadsafe(
-            telegram_app.bot.send_message(chat_id=logs_chat_id, text=log_text, entities=entities),
+            telegram_app.bot.send_message(chat_id=logs_chat_id, text=log_text, parse_mode='HTML'),
             main_loop
         )
         print("DEBUG: уведомление отправлено в группу логов")
