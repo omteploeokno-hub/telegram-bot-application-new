@@ -116,7 +116,63 @@ async def button_handler(update, context):
         print("DEBUG: меню выбора источника отправлено")
     elif query.data == "distribute_order":
         print("DEBUG: выбрано distribute_order")
-        await query.edit_message_text("Функция распределения заявок в разработке.")
+        context.user_data.clear()
+        context.user_data['step'] = 'distribute'
+        
+        # Получаем заявки из первичного пула
+        sheet = get_worksheet(PRIMARY_POOL_SHEET)
+        all_values = sheet.get_all_values()
+        
+        # Пропускаем заголовок (первая строка)
+        orders = []
+        for idx, row in enumerate(all_values[1:], start=2):
+            if any(row):  # если строка не пустая
+                orders.append({
+                    'row': idx,
+                    'id': row[0] if len(row) > 0 else '',  # A
+                    'source': row[1] if len(row) > 1 else '',  # B
+                    'receipt_date': row[2] if len(row) > 2 else '',  # C
+                    'client': row[4] if len(row) > 4 else '',  # E
+                    'address': row[5] if len(row) > 5 else '',  # F
+                    'comment': row[6] if len(row) > 6 else ''  # G
+                })
+        
+        if not orders:
+            await query.edit_message_text("Нет нераспределённых заявок.")
+            return
+        
+        context.user_data['orders'] = orders
+        
+        # Формируем текст списка
+        text = "Список нераспределённых (новых) заявок:\n\n"
+        for i, order in enumerate(orders, start=1):
+            text += f"{i}. ID: {order['id']} / Источник заявки: {order['source']} / Дата создания: {order['receipt_date']} / Клиент: {order['client']} / Адрес: {order['address']} / Комментарий: {order['comment']}\n"
+        
+        # Создаём кнопки с номерами
+        keyboard = []
+        for i, order in enumerate(orders, start=1):
+            keyboard.append([InlineKeyboardButton(f"{i} / ID: {order['id']}", callback_data=f"distribute_{i-1}")])
+        keyboard.append([InlineKeyboardButton("❌ Отмена", callback_data="cancel")])
+        
+        await query.edit_message_text(
+            text,
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+        print("DEBUG: список распределения отправлен")
+
+async def distribute_order_callback(update, context):
+    print("DEBUG: distribute_order_callback вызван")
+    query = update.callback_query
+    print(f"DEBUG: query.data = {query.data}")
+    await query.answer()
+    
+    if query.data == "cancel":
+        await query.edit_message_text("❌ Отменено.")
+        context.user_data.clear()
+        return
+    
+    # Пока просто подтверждаем выбор
+    await query.edit_message_text("Функция выбора мастера в разработке.")
 
 async def source_callback(update, context):
     print("DEBUG: source_callback вызван")
@@ -326,6 +382,7 @@ def run_webhook():
     # Обработчики в правильном порядке
     telegram_app.add_handler(CallbackQueryHandler(button_handler, pattern="^(create_order|distribute_order)$"))
     telegram_app.add_handler(CallbackQueryHandler(source_callback, pattern="^src_"))
+    telegram_app.add_handler(CallbackQueryHandler(distribute_order_callback, pattern="^distribute_"))
     telegram_app.add_handler(CallbackQueryHandler(confirm_callback, pattern="^(submit|back|cancel)$"))
     telegram_app.add_handler(CallbackQueryHandler(go_back, pattern="^back$"))
     
