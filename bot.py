@@ -67,12 +67,36 @@ def save_order_to_sheet(data):
     sheet = get_worksheet(PRIMARY_POOL_SHEET)
     row = get_next_empty_row(sheet)
     print(f"DEBUG: сохраняем в строку {row}")
-    sheet.update(f'B{row}', [[data['source']]])
-    sheet.update(f'C{row}', [[data['receipt_date']]])
-    sheet.update(f'E{row}', [[data['client']]])
-    sheet.update(f'F{row}', [[data['address']]])
-    sheet.update(f'G{row}', [[data['comment']]])
+    sheet.update(range_name=f'B{row}', values=[[data['source']]])
+    sheet.update(range_name=f'C{row}', values=[[data['receipt_date']]])
+    sheet.update(range_name=f'E{row}', values=[[data['client']]])
+    sheet.update(range_name=f'F{row}', values=[[data['address']]])
+    sheet.update(range_name=f'G{row}', values=[[data['comment']]])
     print("DEBUG: данные сохранены")
+    
+    # Отправка уведомления в беседу
+    try:
+        chat_id = -5454540811
+        # Получаем ID заявки (столбец A, только что созданная строка)
+        order_id = sheet.cell(row, 1).value
+        if not order_id:
+            order_id = "Не указан"
+        
+        notification_text = (
+            f"#заявка {data['source']}\n\n"
+            f"<i>ID:</i> \"{order_id}\"\n"
+            f"<i>Адрес:</i> \"{data['address']}\"\n"
+            f"<i>Клиент:</i> \"{data['client']}\"\n"
+            f"<i>Комментарий:</i> \"{data['comment']}\""
+        )
+        
+        asyncio.run_coroutine_threadsafe(
+            telegram_app.bot.send_message(chat_id=chat_id, text=notification_text, parse_mode='HTML'),
+            main_loop
+        )
+        print("DEBUG: уведомление отправлено в чат")
+    except Exception as e:
+        print(f"DEBUG: не удалось отправить уведомление: {e}")
 
 # ========== КОМАНДЫ ==========
 async def start(update, context):
