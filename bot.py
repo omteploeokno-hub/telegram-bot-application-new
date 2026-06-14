@@ -120,7 +120,7 @@ def save_order_to_sheet(data):
     # Сохраняем в общий пул
     save_order_to_general_pool(data, order_id)
     
-    # Отправка уведомления в беседу
+    # Отправка уведомления в беседу (создание заявки)
     try:
         chat_id = -5454540811
         notification_text = (
@@ -137,6 +137,18 @@ def save_order_to_sheet(data):
         print("DEBUG: уведомление отправлено в чат")
     except Exception as e:
         print(f"DEBUG: не удалось отправить уведомление: {e}")
+    
+    # Отправка в группу логов движения заявок
+    try:
+        logs_chat_id = -5316127083
+        log_text = f"🟢 Создана новая заявка, присвоен ID #{order_id}"
+        asyncio.run_coroutine_threadsafe(
+            telegram_app.bot.send_message(chat_id=logs_chat_id, text=log_text),
+            main_loop
+        )
+        print("DEBUG: уведомление отправлено в группу логов")
+    except Exception as e:
+        print(f"DEBUG: не удалось отправить уведомление в группу логов: {e}")
 
 # ========== КОМАНДЫ ==========
 async def start(update, context):
@@ -278,7 +290,7 @@ async def handle_text(update, context):
         await update.message.reply_text(
             "Введите клиента:\n\n"
             "<i>Следует перечислить реквизиты клиента в одну строку, например: Елена, 89990004422.</i>\n\n"
-            "<i>Jika perlu untuk mencantumkan beberapa requisits dan/atau penjelasan untuk requisits, hal ini juga harus dilakukan dalam satu baris dengan pemisahan visual yang jelas, misalnya: \"Елена (pemilik, untuk pembayaran), 89990004422. Anastasia (penyewa, untuk perencanaan keberangkatan), 89997776655\"</i>",
+            "<i>Jika perlu untuk mencantumkan beberapa requisits dan/atau penjelasan untuk requisits, hal ini juga harus dilakukan dalam satu baris dengan pemisahan visual yang jelas, misalnya: \"Еlena (pemilik, untuk pembayaran), 89990004422. Anastasia (penyewa, untuk perencanaan keberangkatan), 89997776655\"</i>",
             parse_mode='HTML',
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
@@ -381,7 +393,7 @@ async def go_back(update, context):
         await query.edit_message_text(
             "Введите клиента:\n\n"
             "<i>Следует перечислить реквизиты клиента в одну строку, например: Елена, 89990004422.</i>\n\n"
-            "<i>Jika perlu untuk mencantumkan beberapa requisits dan/atau penjelasan untuk requisits, hal ini juga harus dilakukan dalam satu baris dengan pemisahan visual yang jelas, misalnya: \"Елена (pemilik, untuk pembayaran), 89990004422. Anastasia (penyewa, untuk perencanaan keberangkatan), 89997776655\"</i>",
+            "<i>Jika perlu untuk mencantumkan beberapa requisits dan/atau penjelasan untuk requisits, hal ini juga harus dilakukan dalam satu baris dengan pemisahan visual yang jelas, misalnya: \"Еlena (pemilik, untuk pembayaran), 89990004422. Anastasia (penyewa, untuk perencanaan keberangkatan), 89997776655\"</i>",
             parse_mode='HTML',
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
