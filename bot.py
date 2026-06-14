@@ -231,7 +231,7 @@ async def button_handler(update, context):
         for i, order in enumerate(orders, start=1):
             order_text = f"{i}. ID: {order['id']} / Источник заявки: {order['source']} / Дата создания: {order['receipt_date']} / Клиент: {order['client']} / Адрес: {order['address']} / Комментарий: {order['comment']}"
             if order.get('redirect') == "Да":
-                order_text += " ❗ Перенаправить"
+                order_text += " /// ❗ Отказ от заявки, перенаправить"
             text += order_text + "\n\n"
         
         # Создаём кнопки с номерами
