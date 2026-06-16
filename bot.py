@@ -156,8 +156,6 @@ def save_order_to_sheet(data, admin_name="Неизвестный"):
     except Exception as e:
         print(f"DEBUG: не удалось отправить уведомление в группу логов: {e}")
 
-python
-
 def copy_order_to_master(order_data, master_sheet_name):
     print(f"DEBUG: copy_order_to_master вызван для {master_sheet_name}")
     
