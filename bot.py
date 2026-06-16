@@ -181,8 +181,8 @@ def copy_order_to_master(order_data, master_sheet_name):
     master_sheet.update(range_name=f'C{master_row}', values=[[order_data['receipt_date']]])  # Дата поступления
     master_sheet.update(range_name=f'E{master_row}', values=[[order_data['client']]])  # Клиент
     master_sheet.update(range_name=f'F{master_row}', values=[[order_data['address']]])  # Адрес
-    master_sheet.update(range_name=f'G{master_row}', values=[[order_data['comment']]])  # Комментарий
-    master_sheet.update(range_name=f'O{master_row}', values=[["В работе"]])  # Статус
+    master_sheet.update(range_name=f'P{master_row}', values=[[order_data['comment']]])  # Комментарий (P)
+    master_sheet.update(range_name=f'O{master_row}', values=[["В работе"]])  # Статус (O)
     
     print(f"DEBUG: заявка скопирована в лист {master_sheet_name}, строка {master_row}")
     
