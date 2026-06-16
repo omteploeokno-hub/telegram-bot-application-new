@@ -22,7 +22,7 @@ GENERAL_POOL_SHEET = "Общий пул заявок"
 
 EKATERINBURG_TZ = timezone(timedelta(hours=5))
 
-ADMINS = [6067555377, 5518656277, 1004439700]
+ADMINS = [6067555377, 5518656277]
 
 SOURCE_OPTIONS = [
     "ПРОФИ", "Сайт форма", "Звонок", "Telegram", "WhatsApp",
@@ -61,6 +61,20 @@ def get_next_empty_row(sheet):
             return idx
     new_row = len(all_values) + 1
     print(f"DEBUG: все строки заняты, новая строка {new_row}")
+    return new_row
+
+def get_next_empty_row_for_master(sheet):
+    """Ищет первую строку, где столбец B пустой (только для листов мастеров)"""
+    print(f"DEBUG: get_next_empty_row_for_master вызван")
+    col_b = sheet.col_values(2)  # столбец B
+    for idx, val in enumerate(col_b, start=1):
+        if not val:  # если ячейка B пустая
+            print(f"DEBUG: найдена пустая строка {idx} (столбец B пуст)")
+            return idx
+    # Если все строки заняты, добавляем новые
+    new_row = len(col_b) + 1
+    print(f"DEBUG: все строки заняты, добавляем строку {new_row}")
+    sheet.add_rows(10)
     return new_row
 
 def generate_next_order_id():
@@ -159,9 +173,8 @@ def save_order_to_sheet(data, admin_name="Неизвестный"):
 def copy_order_to_master(order_data, master_sheet_name):
     print(f"DEBUG: copy_order_to_master вызван для {master_sheet_name}")
     
-    # 1. Копируем в лист мастера
     master_sheet = get_worksheet(master_sheet_name)
-    master_row = get_next_empty_row(master_sheet)
+    master_row = get_next_empty_row_for_master(master_sheet)
     
     master_sheet.update(range_name=f'A{master_row}', values=[[order_data['id']]])  # ID
     master_sheet.update(range_name=f'B{master_row}', values=[[order_data['source']]])  # Источник
