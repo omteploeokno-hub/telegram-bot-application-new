@@ -22,7 +22,7 @@ GENERAL_POOL_SHEET = "Общий пул заявок"
 
 EKATERINBURG_TZ = timezone(timedelta(hours=5))
 
-ADMINS = [6067555377, 5518656277]
+ADMINS = [6067555377, 5518656277, 1004439700]
 
 SOURCE_OPTIONS = [
     "ПРОФИ", "Сайт форма", "Звонок", "Telegram", "WhatsApp",
