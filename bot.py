@@ -159,32 +159,19 @@ def save_order_to_sheet(data, admin_name="Неизвестный"):
 def copy_order_to_master(order_data, master_sheet_name):
     print(f"DEBUG: copy_order_to_master вызван для {master_sheet_name}")
     
-    # 1. Копируем в лист мастера через append_row
+    # 1. Копируем в лист мастера
     master_sheet = get_worksheet(master_sheet_name)
+    master_row = get_next_empty_row(master_sheet)
     
-    # Формируем строку для добавления
-    row_data = [
-        order_data['id'],          # A
-        order_data['source'],      # B
-        order_data['receipt_date'], # C
-        "",                         # D (Изменено)
-        order_data['client'],      # E
-        order_data['address'],     # F
-        "",                         # G (Сумма)
-        "",                         # H (Выезд)
-        "",                         # I (Расходы)
-        "",                         # J
-        "",                         # K
-        "",                         # L
-        "",                         # M
-        "В работе",                 # O (Статус)
-        order_data['comment'],     # P (Комментарий)
-        "",                         # Q
-        "",                         # R
-    ]
+    master_sheet.update(range_name=f'A{master_row}', values=[[order_data['id']]])  # ID
+    master_sheet.update(range_name=f'B{master_row}', values=[[order_data['source']]])  # Источник
+    master_sheet.update(range_name=f'C{master_row}', values=[[order_data['receipt_date']]])  # Дата поступления
+    master_sheet.update(range_name=f'E{master_row}', values=[[order_data['client']]])  # Клиент
+    master_sheet.update(range_name=f'F{master_row}', values=[[order_data['address']]])  # Адрес
+    master_sheet.update(range_name=f'G{master_row}', values=[[order_data['comment']]])  # Комментарий
+    master_sheet.update(range_name=f'O{master_row}', values=[["В работе"]])  # Статус
     
-    master_sheet.append_row(row_data, value_input_option='USER_ENTERED')
-    print(f"DEBUG: заявка скопирована в лист {master_sheet_name}")
+    print(f"DEBUG: заявка скопирована в лист {master_sheet_name}, строка {master_row}")
     
     # 2. Удаляем строку из первичного пула
     primary_sheet = get_worksheet(PRIMARY_POOL_SHEET)
@@ -201,6 +188,8 @@ def copy_order_to_master(order_data, master_sheet_name):
             break
     
     if general_row:
+        now = datetime.now(EKATERINBURG_TZ).strftime("%d.%m.%Y")
+        general_sheet.update(range_name=f'D{general_row}', values=[[now]])  # D = Изменено
         general_sheet.update(range_name=f'G{general_row}', values=[["Распределена"]])
         general_sheet.update(range_name=f'H{general_row}', values=[[master_sheet_name]])
         print(f"DEBUG: общий пул обновлён, строка {general_row}")
