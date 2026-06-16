@@ -156,6 +156,45 @@ def save_order_to_sheet(data, admin_name="Неизвестный"):
     except Exception as e:
         print(f"DEBUG: не удалось отправить уведомление в группу логов: {e}")
 
+def copy_order_to_master(order_data, master_sheet_name):
+    print(f"DEBUG: copy_order_to_master вызван для {master_sheet_name}")
+    
+    # 1. Копируем в лист мастера
+    master_sheet = get_worksheet(master_sheet_name)
+    master_row = get_next_empty_row(master_sheet)
+    
+    master_sheet.update(range_name=f'A{master_row}', values=[[order_data['id']]])  # ID
+    master_sheet.update(range_name=f'B{master_row}', values=[[order_data['source']]])  # Источник
+    master_sheet.update(range_name=f'C{master_row}', values=[[order_data['receipt_date']]])  # Дата поступления
+    master_sheet.update(range_name=f'E{master_row}', values=[[order_data['client']]])  # Клиент
+    master_sheet.update(range_name=f'F{master_row}', values=[[order_data['address']]])  # Адрес
+    master_sheet.update(range_name=f'G{master_row}', values=[[order_data['comment']]])  # Комментарий
+    master_sheet.update(range_name=f'O{master_row}', values=[["В работе"]])  # Статус
+    
+    print(f"DEBUG: заявка скопирована в лист {master_sheet_name}, строка {master_row}")
+    
+    # 2. Удаляем строку из первичного пула
+    primary_sheet = get_worksheet(PRIMARY_POOL_SHEET)
+    primary_sheet.delete_rows(order_data['row'])
+    print(f"DEBUG: строка {order_data['row']} удалена из первичного пула")
+    
+    # 3. Обновляем общий пул
+    general_sheet = get_worksheet(GENERAL_POOL_SHEET)
+    # Ищем строку с этим ID в общем пуле
+    all_ids = general_sheet.col_values(1)
+    general_row = None
+    for idx, val in enumerate(all_ids, start=1):
+        if val == order_data['id']:
+            general_row = idx
+            break
+    
+    if general_row:
+        general_sheet.update(range_name=f'G{general_row}', values=[["Распределена"]])
+        general_sheet.update(range_name=f'H{general_row}', values=[[master_sheet_name]])
+        print(f"DEBUG: общий пул обновлён, строка {general_row}")
+    else:
+        print(f"DEBUG: заявка с ID {order_data['id']} не найдена в общем пуле")
+
 # ========== КОМАНДЫ ==========
 async def start(update, context):
     print("DEBUG: start функция вызвана")
@@ -265,8 +304,44 @@ async def distribute_order_callback(update, context):
         context.user_data.clear()
         return
     
-    # Пока просто подтверждаем выбор
-    await query.edit_message_text("Функция выбора мастера в разработке.")
+    # Получаем выбранную заявку
+    order_index = int(query.data.split('_')[1])
+    selected_order = context.user_data['orders'][order_index]
+    context.user_data['selected_order'] = selected_order
+    
+    # Показываем список мастеров
+    masters = ["Тест", "Виктор", "Сергей Олегович"]
+    keyboard = [[InlineKeyboardButton(master, callback_data=f"master_{master}")] for master in masters]
+    keyboard.append([InlineKeyboardButton("❌ Отмена", callback_data="cancel")])
+    
+    await query.edit_message_text(
+        f"Выберите мастера для заявки {selected_order['id']}:",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+
+async def master_selected_callback(update, context):
+    print("DEBUG: master_selected_callback вызван")
+    query = update.callback_query
+    print(f"DEBUG: query.data = {query.data}")
+    await query.answer()
+    
+    if query.data == "cancel":
+        await query.edit_message_text("❌ Отменено.")
+        context.user_data.clear()
+        return
+    
+    master_name = query.data.split('_', 1)[1]
+    order_data = context.user_data['selected_order']
+    
+    try:
+        copy_order_to_master(order_data, master_name)
+        await query.edit_message_text(
+            f"✅ Заявка {order_data['id']} успешно распределена мастеру {master_name}."
+        )
+        context.user_data.clear()
+    except Exception as e:
+        await query.edit_message_text(f"❌ Ошибка при распределении: {e}")
+        print(f"DEBUG: ошибка: {e}")
 
 async def source_callback(update, context):
     print("DEBUG: source_callback вызван")
@@ -483,6 +558,7 @@ def run_webhook():
     telegram_app.add_handler(CallbackQueryHandler(button_handler, pattern="^(create_order|distribute_order)$"))
     telegram_app.add_handler(CallbackQueryHandler(source_callback, pattern="^src_"))
     telegram_app.add_handler(CallbackQueryHandler(distribute_order_callback, pattern="^distribute_"))
+    telegram_app.add_handler(CallbackQueryHandler(master_selected_callback, pattern="^master_"))
     telegram_app.add_handler(CallbackQueryHandler(confirm_callback, pattern="^(submit|back|cancel)$"))
     telegram_app.add_handler(CallbackQueryHandler(go_back, pattern="^back$"))
     
