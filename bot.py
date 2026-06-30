@@ -24,6 +24,18 @@ EKATERINBURG_TZ = timezone(timedelta(hours=5))
 
 ADMINS = [6067555377, 5518656277, 1004439700]
 
+# Словарь мастеров для отправки уведомлений при распределении
+MASTERS = {
+    "Сергей Олегович": {
+        "sheet": "Сергей Олегович",
+        "chat_id": -5511737462
+    },
+    "Виктор": {
+        "sheet": "Виктор",
+        "chat_id": -5335799504
+    }
+}
+
 SOURCE_OPTIONS = [
     "ПРОФИ", "Сайт форма", "Звонок", "Telegram", "WhatsApp",
     "MAX", "Рекомендация", "Повторное", "От работника", "Другое", "н/у"
@@ -209,7 +221,7 @@ def copy_order_to_master(order_data, master_sheet_name):
     else:
         print(f"DEBUG: заявка с ID {order_data['id']} не найдена в общем пуле")
     
-    # 4. Отправка уведомления в логи движения заявок о распределении
+    # 4. Отправка уведомления в логи движения заявок
     try:
         logs_chat_id = -5316127083
         now = datetime.now(EKATERINBURG_TZ)
@@ -231,6 +243,37 @@ def copy_order_to_master(order_data, master_sheet_name):
         print("DEBUG: уведомление о распределении отправлено в группу логов")
     except Exception as e:
         print(f"DEBUG: не удалось отправить уведомление о распределении: {e}")
+    
+    # 5. Отправка уведомления мастеру в его беседу
+    try:
+        # Находим chat_id мастера по имени листа
+        master_chat_id = None
+        for master_name, master_data in MASTERS.items():
+            if master_data.get('sheet') == master_sheet_name:
+                master_chat_id = master_data.get('chat_id')
+                break
+        
+        if master_chat_id:
+            now = datetime.now(EKATERINBURG_TZ)
+            date_time_str = now.strftime("%d.%m.%Y %H:%M UTC+5")
+            
+            master_text = (
+                f"#заявка {order_data['source']}\n\n"
+                f"<i>ID:</i> {order_data['id']}\n"
+                f"<i>Адрес:</i> {order_data['address']}\n"
+                f"<i>Клиент:</i> {order_data['client']}\n"
+                f"<i>Комментарий:</i> {order_data['comment']}\n\n"
+                f"<i>{date_time_str}</i>"
+            )
+            asyncio.run_coroutine_threadsafe(
+                telegram_app.bot.send_message(chat_id=master_chat_id, text=master_text, parse_mode='HTML'),
+                main_loop
+            )
+            print(f"DEBUG: уведомление отправлено мастеру {master_sheet_name} в чат {master_chat_id}")
+        else:
+            print(f"DEBUG: chat_id для мастера {master_sheet_name} не найден")
+    except Exception as e:
+        print(f"DEBUG: не удалось отправить уведомление мастеру: {e}")
 
 # ========== КОМАНДЫ ==========
 async def start(update, context):
