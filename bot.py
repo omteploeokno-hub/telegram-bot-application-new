@@ -89,6 +89,50 @@ def get_next_empty_row_for_master(sheet):
     sheet.add_rows(10)
     return new_row
 
+# ========== НОВАЯ ФУНКЦИЯ: ДОБАВЛЕНИЕ КОММЕНТАРИЯ В ОБЩИЙ ПУЛ ==========
+def add_comment_to_general_pool(order_id, comment):
+    """Добавляет комментарий в Общий пул заявок (в первую свободную ячейку J-R)"""
+    print(f"DEBUG: add_comment_to_general_pool вызван для order_id={order_id}, comment={comment}")
+    try:
+        general_sheet = get_worksheet(GENERAL_POOL_SHEET)
+        
+        # Находим строку с заявкой
+        all_ids = general_sheet.col_values(1)
+        print(f"DEBUG: найдено {len(all_ids)} ID в общем пуле")
+        
+        general_row = None
+        for idx, val in enumerate(all_ids, start=1):
+            if val == order_id:
+                general_row = idx
+                break
+        
+        if not general_row:
+            print(f"DEBUG: заявка {order_id} не найдена в общем пуле")
+            return
+        
+        print(f"DEBUG: заявка {order_id} найдена в строке {general_row}")
+        
+        # Если комментарий пустой, записываем "Без комментария"
+        comment_text = comment if comment else "Без комментария"
+        print(f"DEBUG: комментарий для записи: {comment_text}")
+        
+        # Ищем первую пустую ячейку в столбцах J-R (10-18 столбцы)
+        for col in range(10, 19):  # J=10, K=11, L=12, M=13, N=14, O=15, P=16, Q=17, R=18
+            cell_value = general_sheet.cell(general_row, col).value
+            print(f"DEBUG: столбец {chr(64 + col)} = {cell_value}")
+            if not cell_value:
+                general_sheet.update(
+                    range_name=f'{chr(64 + col)}{general_row}', 
+                    values=[[comment_text]]
+                )
+                print(f"DEBUG: комментарий добавлен в столбец {chr(64 + col)}")
+                return
+                
+        print(f"DEBUG: не найдено свободного места в столбцах J-R")
+                
+    except Exception as e:
+        print(f"DEBUG: ошибка при добавлении комментария в общий пул: {e}")
+
 def generate_next_order_id():
     print("DEBUG: generate_next_order_id вызван")
     sheet = get_worksheet(GENERAL_POOL_SHEET)
@@ -123,6 +167,11 @@ def save_order_to_general_pool(data, order_id):
     sheet.update(range_name=f'F{row}', values=[[data['address']]])
     sheet.update(range_name=f'G{row}', values=[["Создана, не распределена"]])
     print("DEBUG: данные сохранены в общий пул")
+    
+    # ========== ДОБАВЛЯЕМ КОММЕНТАРИЙ В ОБЩИЙ ПУЛ ==========
+    # Добавляем комментарий в первую свободную ячейку J-R
+    add_comment_to_general_pool(order_id, data.get('comment', ''))
+    print("DEBUG: комментарий добавлен в общий пул")
 
 def save_order_to_sheet(data, admin_name="Неизвестный"):
     print("DEBUG: save_order_to_sheet вызван")
