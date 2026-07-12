@@ -24,7 +24,7 @@ EKATERINBURG_TZ = timezone(timedelta(hours=5))
 
 ADMINS = [6067555377, 5518656277, 1004439700]
 
-# Словарь мастеров для отправки уведомлений при распределении
+# Сюда добавлять админов
 MASTERS = {
     "Сергей Олегович": {
         "sheet": "Сергей Олегович",
@@ -278,12 +278,7 @@ def copy_order_to_master(order_data, master_sheet_name):
         
         log_text = (
             f"🟢 {date_time_str} распределена заявка ID #{order_data['id']} мастеру {master_sheet_name}\n\n"
-            f"#заявка {order_data['source']}\n\n"
-            f"<i>ID:</i> {order_data['id']}\n"
-            f"<i>Адрес:</i> {order_data['address']}\n"
-            f"<i>Клиент:</i> {order_data['client']}\n"
-            f"<i>Комментарий:</i> {order_data['comment']}\n\n"
-            f"<i>{date_time_str}</i>"
+            f"<i>Действие совершил: \"{admin_name}\"</i>"
         )
         asyncio.run_coroutine_threadsafe(
             telegram_app.bot.send_message(chat_id=logs_chat_id, text=log_text, parse_mode='HTML'),
@@ -444,7 +439,7 @@ async def distribute_order_callback(update, context):
     keyboard.append([InlineKeyboardButton("❌ Отмена", callback_data="cancel")])
     
     await query.edit_message_text(
-        f"Выберите мастера для заявки {selected_order['id']}:",
+        f"Выберите кому распределить заявку {selected_order['id']}:",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
@@ -465,7 +460,7 @@ async def master_selected_callback(update, context):
     try:
         copy_order_to_master(order_data, master_name)
         await query.edit_message_text(
-            f"✅ Заявка {order_data['id']} успешно распределена мастеру {master_name}."
+            f"✅ Заявка {order_data['id']} успешно распределена {master_name}."
         )
         context.user_data.clear()
     except Exception as e:
@@ -584,7 +579,7 @@ async def confirm_callback(update, context):
             admin_name += f" {update.effective_user.last_name}"
         
         save_order_to_sheet(data, admin_name)
-        await query.edit_message_text("✅ Заявка успешно сохранена в Первичный пул.")
+        await query.edit_message_text("✅ Заявка успешно сохранена.")
         context.user_data.clear()
         await show_main_menu(query.message, context)
 
